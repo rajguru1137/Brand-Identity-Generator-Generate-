@@ -1,0 +1,79 @@
+name: Build Debug APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Find Android Project and Gradle Wrapper
+        id: setup
+        run: |
+          GRADLEW_PATH=$(find . -name "gradlew" -type f | head -n 1)
+
+          if [ -z "$GRADLEW_PATH" ]; then
+            echo "Error: Could not find gradlew in the repository. The Android project or Gradle wrapper cannot be found."
+            exit 1
+          fi
+
+          PROJECT_ROOT=$(dirname "$GRADLEW_PATH")
+          echo "Found Android project at: $PROJECT_ROOT"
+          echo "project_root=$PROJECT_ROOT" >> $GITHUB_OUTPUT
+
+          chmod +x "$PROJECT_ROOT/gradlew"
+
+      - name: Clean Build Caches
+        run: |
+          PROJECT_ROOT="${{ steps.setup.outputs.project_root }}"
+          echo "Removing project-level .gradle directory..."
+          rm -rf "$PROJECT_ROOT/.gradle"
+
+          echo "Removing application module build directories..."
+          find "$PROJECT_ROOT" -type d -name "build" -exec rm -rf {} + || true
+
+      - name: Build Debug APK
+        run: |
+          PROJECT_ROOT="${{ steps.setup.outputs.project_root }}"
+          cd "$PROJECT_ROOT"
+          ./gradlew assembleDebug --stacktrace --no-daemon
+
+      - name: Locate APK
+        id: locate
+        run: |
+          PROJECT_ROOT="${{ steps.setup.outputs.project_root }}"
+
+          # Prefer debug APKs
+          APK_FILES=$(find "$PROJECT_ROOT" -name "*.apk" -type f | grep -i "debug" || true)
+          if [ -z "$APK_FILES" ]; then
+             APK_FILES=$(find "$PROJECT_ROOT" -name "*.apk" -type f || true)
+          fi
+
+          if [ -z "$APK_FILES" ]; then
+            echo "Error: The generated APK cannot be found."
+            exit 1
+          fi
+
+          mkdir -p "$GITHUB_WORKSPACE/apk-output"
+          for apk in $APK_FILES; do
+            cp "$apk" "$GITHUB_WORKSPACE/apk-output/"
+          done
+          echo "Found APK files."
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-app-debug-apk
+          path: apk-output/*.apk
+          if-no-files-found: error
