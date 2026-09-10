@@ -1,0 +1,59 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17' # Common required java version
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Give Gradle Wrapper Permission
+        run: |
+          GRADLE_DIR=$(find . -name "gradlew" -exec dirname {} \; | head -n 1)
+          if [ -n "$GRADLE_DIR" ]; then
+            cd "$GRADLE_DIR"
+            chmod +x gradlew
+          fi
+
+      - name: Remove stale caches
+        run: |
+          GRADLE_DIR=$(find . -name "gradlew" -exec dirname {} \; | head -n 1)
+          if [ -n "$GRADLE_DIR" ]; then
+            cd "$GRADLE_DIR"
+            rm -rf .gradle
+            # Delete any build output folders safely
+            find . -type d -name "build" -exec rm -rf {} + || true
+          fi
+
+      - name: Build Debug APK
+        run: |
+          GRADLE_DIR=$(find . -name "gradlew" -exec dirname {} \; | head -n 1)
+          if [ -n "$GRADLE_DIR" ]; then
+            cd "$GRADLE_DIR"
+            ./gradlew assembleDebug --stacktrace --no-daemon
+          else
+            echo "Error: gradlew not found. Please ensure the repository contains an Android project with a Gradle wrapper."
+            false
+          fi
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-app-debug-apk
+          path: '**/*.apk'
+          if-no-files-found: error
