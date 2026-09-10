@@ -1,0 +1,6 @@
+{
+  "name": "Brand Identity Generator",
+  "description": "Generate comprehensive Brand Bibles, convert images to multi-page PDF documents, and publish copied text directly into formatted PDFs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
